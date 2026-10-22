@@ -109,37 +109,39 @@ export const LoginView: React.FC<Props> = ({ onGoToRegister }) => {
             </button>
           </form>
 
-          {/* Quick Demo Fast Access */}
-          <div className="pt-4 border-t border-zinc-800/80">
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block text-center mb-2.5">
-              Acesso Rápido para Avaliação
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('usr-admin-1', 'Geovanner (Admin)')}
-                className="p-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-left transition-all"
-              >
-                <div className="flex items-center gap-1.5 font-bold text-xs">
-                  <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Admin Geral</span>
-                </div>
-                <span className="text-[10px] text-zinc-400 block truncate">geovanner13@gmail.com</span>
-              </button>
+          {/* Quick Demo Fast Access (Only visible in Development or when VITE_ENABLE_DEMO=true) */}
+          {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO === 'true') && (
+            <div className="pt-4 border-t border-zinc-800/80">
+              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block text-center mb-2.5">
+                Acesso Rápido para Avaliação (Modo Demonstração)
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemo('usr-admin-1', 'Geovanner (Admin)')}
+                  className="p-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-left transition-all"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs">
+                    <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Admin Geral</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 block truncate">geovanner13@gmail.com</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('usr-lucas', 'Lucas (Voluntário)')}
-                className="p-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-left transition-all"
-              >
-                <div className="flex items-center gap-1.5 font-bold text-xs">
-                  <UserIcon className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>Voluntário</span>
-                </div>
-                <span className="text-[10px] text-zinc-400 block truncate">Lucas Silva (Câmera 1)</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemo('usr-lucas', 'Lucas (Voluntário)')}
+                  className="p-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-left transition-all"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs">
+                    <UserIcon className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Voluntário</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 block truncate">Lucas Silva (Câmera 1)</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="text-center pt-2">
             <button
