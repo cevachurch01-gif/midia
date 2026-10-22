@@ -1,0 +1,6 @@
+{
+  "name": "Mídia Central",
+  "description": "Sistema completo de gestão para equipes de mídia da igreja: escalas, cultos, setlists, presenças, trocas, equipamentos, tarefas, compras e orçamento.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
