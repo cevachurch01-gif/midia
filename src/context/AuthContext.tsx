@@ -61,27 +61,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [loadAllUsers]);
 
   useEffect(() => {
-    // If no token exists on first load, auto-login with default admin or allow easy selection
+    // Only restore session if a valid token exists in storage
     const token = getStoredToken();
     if (!token) {
-      // Auto-authenticate as default admin for seamless immediate preview
-      api.login('geovanner13@gmail.com', 'admin123')
-        .then((res) => {
-          setStoredToken(res.token);
-          setUser(res.user);
-          loadAllUsers();
-        })
-        .catch(() => {
-          // If login fails, just set user null
-          setUser(null);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    } else {
-      refreshUser();
+      setUser(null);
+      setIsLoading(false);
+      return;
     }
-  }, [refreshUser, loadAllUsers]);
+    refreshUser();
+  }, [refreshUser]);
 
   const login = async (email: string, pass: string) => {
     setIsLoading(true);
