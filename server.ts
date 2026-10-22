@@ -177,8 +177,12 @@ app.put('/api/auth/profile', authenticate, (req, res) => {
   res.json({ user: safeUser, message: 'Perfil e credenciais atualizados com sucesso!' });
 });
 
-// Demo switch route: allows evaluating both Admin and Volunteer personas easily
+// Demo switch route: only allowed in development or when explicitly enabled
 app.post('/api/auth/demo-switch', (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEMO_SWITCH !== 'true') {
+    return res.status(403).json({ error: 'Acesso rápido de demonstração desativado em produção por segurança.' });
+  }
+
   const { userId } = req.body;
   const data = db.getData();
   const targetUser = data.users.find((u) => u.id === userId);
@@ -1769,16 +1773,31 @@ app.get('/api/audit-logs', authenticate, requireAdmin, (req, res) => {
   res.json(data.auditLogs);
 });
 
-// Setup Initial Admin account if requested
+// Setup Initial Admin account (only allowed on first run when no admin exists, or by authenticated admin)
 app.post('/api/auth/setup-admin', (req, res) => {
+  const data = db.getData();
+  const hasExistingAdmin = data.users.some((u) => u.perfil === 'admin');
+
+  // If system already has an admin, require admin authorization to alter admin accounts
+  if (hasExistingAdmin) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(403).json({ error: 'O sistema já possui um administrador configurado. Faça login para gerenciar usuários.' });
+    }
+    const token = authHeader.split(' ')[1];
+    const tokenRecord = data.tokens.find((t) => t.token === token);
+    const requestingUser = data.users.find((u) => u.id === tokenRecord?.userId);
+    if (!requestingUser || requestingUser.perfil !== 'admin') {
+      return res.status(403).json({ error: 'Acesso restrito: apenas administradores podem configurar outros administradores.' });
+    }
+  }
+
   const { nome, email, password } = req.body;
   if (!nome || !email || !password) {
     return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
   }
 
-  const data = db.getData();
   const existing = data.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-
   const { hash, salt } = hashPassword(password);
   if (existing) {
     existing.nome = nome;
