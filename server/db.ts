@@ -38,8 +38,10 @@ export interface DatabaseSchema {
   auditLogs: AuditLog[];
 }
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const IS_VERCEL = process.env.VERCEL === '1' || !!process.env.VERCEL;
+const DATA_DIR = IS_VERCEL ? '/tmp/data' : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'midia_central.json');
+const ORIGINAL_DB_FILE = path.resolve(process.cwd(), 'data', 'midia_central.json');
 
 // Password security with Node crypto scrypt
 export function hashPassword(password: string): { hash: string; salt: string } {
@@ -732,15 +734,30 @@ class DatabaseManager {
   }
 
   private ensureDirectory() {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+    } catch (err) {
+      console.warn('Could not ensure DATA_DIR exists:', err);
     }
   }
 
   private loadData(): DatabaseSchema {
     try {
-      if (fs.existsSync(DB_FILE)) {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      // In Vercel serverless, copy initial seed from project data directory to writable /tmp
+      if (IS_VERCEL && !fs.existsSync(DB_FILE) && fs.existsSync(ORIGINAL_DB_FILE)) {
+        try {
+          const originalRaw = fs.readFileSync(ORIGINAL_DB_FILE, 'utf-8');
+          fs.writeFileSync(DB_FILE, originalRaw, 'utf-8');
+        } catch (copyErr) {
+          console.warn('Could not copy initial data to /tmp:', copyErr);
+        }
+      }
+
+      const fileToRead = fs.existsSync(DB_FILE) ? DB_FILE : (fs.existsSync(ORIGINAL_DB_FILE) ? ORIGINAL_DB_FILE : null);
+      if (fileToRead) {
+        const raw = fs.readFileSync(fileToRead, 'utf-8');
         const parsed = JSON.parse(raw);
         // Ensure all collections exist
         const seed = getInitialSeed();
@@ -754,14 +771,22 @@ class DatabaseManager {
       console.error('Error reading database file, creating fresh seed:', err);
     }
     const seed = getInitialSeed();
-    this.writeSync(seed);
+    try {
+      this.writeSync(seed);
+    } catch (err) {
+      console.warn('Could not write seed to disk:', err);
+    }
     return seed;
   }
 
   private writeSync(data: DatabaseSchema) {
-    const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
-    fs.renameSync(tempFile, DB_FILE);
+    try {
+      const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+      fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+      fs.renameSync(tempFile, DB_FILE);
+    } catch (err) {
+      console.warn('writeSync failed (in-memory state preserved):', err);
+    }
   }
 
   public save(): Promise<void> {
@@ -771,24 +796,33 @@ class DatabaseManager {
     }
     this.isSaving = true;
 
-    return new Promise((resolve, reject) => {
-      const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-      const payload = JSON.stringify(this.data, null, 2);
-      fs.writeFile(tempFile, payload, 'utf-8', (err) => {
-        if (err) {
-          this.isSaving = false;
-          return reject(err);
-        }
-        fs.rename(tempFile, DB_FILE, (renameErr) => {
-          this.isSaving = false;
-          if (this.queuedSave) {
-            this.queuedSave = false;
-            this.save();
+    return new Promise((resolve) => {
+      try {
+        const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+        const payload = JSON.stringify(this.data, null, 2);
+        fs.writeFile(tempFile, payload, 'utf-8', (err) => {
+          if (err) {
+            this.isSaving = false;
+            console.warn('Database save warning (in-memory preserved):', err.message);
+            return resolve();
           }
-          if (renameErr) return reject(renameErr);
-          resolve();
+          fs.rename(tempFile, DB_FILE, (renameErr) => {
+            this.isSaving = false;
+            if (this.queuedSave) {
+              this.queuedSave = false;
+              this.save();
+            }
+            if (renameErr) {
+              console.warn('Database rename warning:', renameErr.message);
+            }
+            resolve();
+          });
         });
-      });
+      } catch (e: any) {
+        this.isSaving = false;
+        console.warn('Database write exception (in-memory preserved):', e?.message);
+        resolve();
+      }
     });
   }
 
