@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#312e81" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect width="512" height="512" rx="112" fill="url(#glowGrad)" />
+
+  <!-- Outer subtle border -->
+  <rect x="4" y="4" width="504" height="504" rx="108" fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="8" />
+
+  <!-- Central Symbol: Church Media Spark / Live Broadcast Lens + Cross & Music Flare -->
+  <g filter="url(#shadow)" transform="translate(0, -6)">
+    <!-- Main Diamond / Star Sparkle -->
+    <path d="M256 100 C256 180 200 236 120 236 C200 236 256 292 256 372 C256 292 312 236 392 236 C312 236 256 180 256 100 Z" fill="#ffffff" />
+    
+    <!-- Accent Dots / Signals -->
+    <circle cx="160" cy="140" r="14" fill="#a5b4fc" opacity="0.9" />
+    <circle cx="352" cy="140" r="18" fill="#c4b5fd" opacity="0.9" />
+    <circle cx="150" cy="330" r="16" fill="#c4b5fd" opacity="0.9" />
+    <circle cx="362" cy="330" r="14" fill="#a5b4fc" opacity="0.9" />
+
+    <!-- Center Aperture Ring -->
+    <circle cx="256" cy="236" r="38" fill="#4338ca" />
+    <!-- Play Triangle inside lens -->
+    <polygon points="250,222 268,236 250,250" fill="#ffffff" />
+  </g>
+
+  <!-- Badge Text / Indicator Pill -->
+  <g transform="translate(146, 404)">
+    <rect width="220" height="42" rx="21" fill="#1e1b4b" opacity="0.8" />
+    <text x="110" y="27" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="3">ESCALAS</text>
+  </g>
+</svg>

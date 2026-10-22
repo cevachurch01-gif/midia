@@ -1,0 +1,838 @@
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import {
+  User,
+  FuncaoEquipe,
+  Departamento,
+  Culto,
+  EscalaItem,
+  SolicitacaoTroca,
+  Sugestao,
+  PedidoCompra,
+  OrcamentoConfig,
+  Equipamento,
+  Tarefa,
+  Comunicado,
+  Notificacao,
+  ConfiguracaoIgreja,
+  AuditLog
+} from '../src/types/index.ts';
+
+export interface DatabaseSchema {
+  config: ConfiguracaoIgreja;
+  users: (User & { passwordHash: string; salt: string })[];
+  tokens: { token: string; userId: string; expiresAt: string }[];
+  departamentos: Departamento[];
+  funcoes: FuncaoEquipe[];
+  cultos: Culto[];
+  escalas: EscalaItem[];
+  trocas: SolicitacaoTroca[];
+  sugestoes: Sugestao[];
+  compras: PedidoCompra[];
+  orcamento: OrcamentoConfig;
+  equipamentos: Equipamento[];
+  tarefas: Tarefa[];
+  comunicados: Comunicado[];
+  notificacoes: Notificacao[];
+  auditLogs: AuditLog[];
+}
+
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DB_FILE = path.resolve(DATA_DIR, 'midia_central.json');
+
+// Password security with Node crypto scrypt
+export function hashPassword(password: string): { hash: string; salt: string } {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { hash, salt };
+}
+
+export function verifyPassword(password: string, hash: string, salt: string): boolean {
+  try {
+    const checkHash = crypto.scryptSync(password, salt, 64).toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(checkHash, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+export function generateToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function getInitialSeed(): DatabaseSchema {
+  const adminCred = hashPassword('admin123');
+  const volCred = hashPassword('voluntario123');
+
+  const config: ConfiguracaoIgreja = {
+    nomeIgreja: 'Comunidade da Fé',
+    nomeAplicativo: 'Mídia Central',
+    slogan: 'Excelência no altar e nas telas',
+    corDestaque: '#6366f1',
+    temaPadrao: 'dark',
+    permiteCadastroPublico: true,
+    aprovarCadastrosManual: false,
+    permitirTrocaComSugestao: true
+  };
+
+  const departamentos: Departamento[] = [
+    { id: 'dep-transmissao', nome: 'Transmissão & TV', cor: '#3B82F6', descricao: 'Operação de streaming, corte de câmeras e switcher' },
+    { id: 'dep-projecao', nome: 'Projeção & Telão', cor: '#10B981', descricao: 'Letras, passador de slides, versículos e avisos' },
+    { id: 'dep-foto', nome: 'Fotografia & Mídias', cor: '#EC4899', descricao: 'Registro fotográfico, reels e cobertura de cultos' },
+    { id: 'dep-audio', nome: 'Áudio & Sonoplastia', cor: '#F59E0B', descricao: 'Mixagem para transmissão e masterização' },
+    { id: 'dep-luz', nome: 'Iluminação Cênica', cor: '#8B5CF6', descricao: 'Cenas DMX, moving lights e iluminação do altar' },
+    { id: 'dep-louvor', nome: 'Louvor & Música', cor: '#F43F5E', descricao: 'Ministros de louvor, vocalistas, instrumentistas e repertório' }
+  ];
+
+  const funcoes: FuncaoEquipe[] = [
+    { id: 'func-diretor-tv', nome: 'Direção de TV / Switcher', departamentoId: 'dep-transmissao', cor: '#3B82F6', ativo: true },
+    { id: 'func-obs', nome: 'Operação OBS / Vmix', departamentoId: 'dep-transmissao', cor: '#0284C7', ativo: true },
+    { id: 'func-cam-1', nome: 'Câmera 1 (Púlpito/Principal)', departamentoId: 'dep-transmissao', cor: '#2563EB', ativo: true },
+    { id: 'func-cam-2', nome: 'Câmera 2 (Músicos/Close)', departamentoId: 'dep-transmissao', cor: '#1D4ED8', ativo: true },
+    { id: 'func-cam-movel', nome: 'Câmera Móvel / Gimbal', departamentoId: 'dep-transmissao', cor: '#1E40AF', ativo: true },
+    { id: 'func-projecao', nome: 'Projeção de Letras (Holyrics)', departamentoId: 'dep-projecao', cor: '#10B981', ativo: true },
+    { id: 'func-fotografia', nome: 'Fotografia Oficial', departamentoId: 'dep-foto', cor: '#EC4899', ativo: true },
+    { id: 'func-redes', nome: 'Redes Sociais / Stories', departamentoId: 'dep-foto', cor: '#DB2777', ativo: true },
+    { id: 'func-audio-live', nome: 'Mixagem Áudio Live', departamentoId: 'dep-audio', cor: '#F59E0B', ativo: true },
+    { id: 'func-iluminacao', nome: 'Operação de Luz / DMX', departamentoId: 'dep-luz', cor: '#8B5CF6', ativo: true },
+    { id: 'func-louvor-ministro', nome: 'Ministro de Louvor / Vocal', departamentoId: 'dep-louvor', cor: '#F43F5E', ativo: true },
+    { id: 'func-louvor-musico', nome: 'Instrumentista / Banda', departamentoId: 'dep-louvor', cor: '#FB7185', ativo: true }
+  ];
+
+  const users: (User & { passwordHash: string; salt: string })[] = [
+    {
+      id: 'usr-admin-1',
+      nome: 'Geovanner (Coordenador Geral)',
+      email: 'geovanner13@gmail.com',
+      telefone: '(11) 98765-4321',
+      perfil: 'admin',
+      status: 'ativo',
+      funcoes: ['func-diretor-tv', 'func-obs'],
+      departamentos: ['dep-transmissao', 'dep-foto'],
+      disponibilidade: 'Domingos manhã e noite, Quarta-feira',
+      dataCadastro: '2026-01-10T10:00:00.000Z',
+      passwordHash: adminCred.hash,
+      salt: adminCred.salt
+    },
+    {
+      id: 'usr-lucas',
+      nome: 'Lucas Silva',
+      email: 'lucas.silva@midiaigreja.com',
+      telefone: '(11) 97654-3210',
+      perfil: 'voluntario',
+      status: 'ativo',
+      funcoes: ['func-cam-1', 'func-cam-movel', 'func-fotografia'],
+      departamentos: ['dep-transmissao', 'dep-foto'],
+      disponibilidade: 'Domingo de manhã e noite',
+      dataCadastro: '2026-02-01T14:00:00.000Z',
+      passwordHash: volCred.hash,
+      salt: volCred.salt
+    },
+    {
+      id: 'usr-mariana',
+      nome: 'Mariana Costa',
+      email: 'mariana.costa@midiaigreja.com',
+      telefone: '(11) 96543-2109',
+      perfil: 'voluntario',
+      status: 'ativo',
+      funcoes: ['func-projecao', 'func-redes', 'func-louvor-ministro'],
+      departamentos: ['dep-projecao', 'dep-foto', 'dep-louvor'],
+      disponibilidade: 'Domingo noite e Quarta-feira',
+      dataCadastro: '2026-02-15T09:30:00.000Z',
+      passwordHash: volCred.hash,
+      salt: volCred.salt
+    },
+    {
+      id: 'usr-gabriel',
+      nome: 'Gabriel Santos',
+      email: 'gabriel.santos@midiaigreja.com',
+      telefone: '(11) 95432-1098',
+      perfil: 'voluntario',
+      status: 'ativo',
+      funcoes: ['func-obs', 'func-diretor-tv', 'func-cam-2'],
+      departamentos: ['dep-transmissao'],
+      disponibilidade: 'Domingo manhã e noite',
+      dataCadastro: '2026-03-01T11:00:00.000Z',
+      passwordHash: volCred.hash,
+      salt: volCred.salt
+    },
+    {
+      id: 'usr-beatriz',
+      nome: 'Beatriz Rocha',
+      email: 'beatriz.rocha@midiaigreja.com',
+      telefone: '(11) 94321-0987',
+      perfil: 'voluntario',
+      status: 'ativo',
+      funcoes: ['func-fotografia', 'func-redes'],
+      departamentos: ['dep-foto'],
+      disponibilidade: 'Domingo à noite e eventos especiais',
+      dataCadastro: '2026-03-10T16:00:00.000Z',
+      passwordHash: volCred.hash,
+      salt: volCred.salt
+    },
+    {
+      id: 'usr-thiago',
+      nome: 'Thiago Alves',
+      email: 'thiago.alves@midiaigreja.com',
+      telefone: '(11) 93210-9876',
+      perfil: 'voluntario',
+      status: 'ativo',
+      funcoes: ['func-cam-2', 'func-iluminacao'],
+      departamentos: ['dep-transmissao', 'dep-luz'],
+      disponibilidade: 'Quarta-feira e Domingo manhã',
+      dataCadastro: '2026-04-01T18:00:00.000Z',
+      passwordHash: volCred.hash,
+      salt: volCred.salt
+    }
+  ];
+
+  // Helper date generators for realistic calendar around current time
+  const today = new Date();
+  const formatYMD = (d: Date) => d.toISOString().split('T')[0];
+
+  const nextSunday = new Date(today);
+  nextSunday.setDate(today.getDate() + ((7 - today.getDay()) % 7 || 7));
+
+  const nextWed = new Date(today);
+  nextWed.setDate(today.getDate() + ((3 - today.getDay() + 7) % 7 || 7));
+
+  const pastSunday = new Date(today);
+  pastSunday.setDate(today.getDate() - (today.getDay() || 7));
+
+  const cultos: Culto[] = [
+    {
+      id: 'culto-proximo-domingo',
+      titulo: 'Culto de Celebração & Família',
+      tipo: 'Domingo Noite',
+      data: formatYMD(nextSunday),
+      horarioInicio: '19:00',
+      horarioTermino: '21:00',
+      local: 'Templo Principal',
+      tema: 'Graça Abundante e Propósito',
+      pregador: 'Pastor Carlos Oliveira',
+      descricao: 'Culto com batismos e santa ceia. Transmissão com 3 câmeras e gravação em 4K.',
+      observacoes: 'Chegada da equipe às 17h45 para passagem de som e alinhamento do Holyrics.',
+      status: 'confirmado',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-15T12:00:00.000Z',
+      programacao: [
+        { id: 'b-1', ordem: 1, titulo: 'Abertura & Contagem Regressiva (Vídeo)', duracaoMinutos: 5, responsavel: 'Operação OBS', observacoes: 'Soltar vinheta às 18:58 pontual' },
+        { id: 'b-2', ordem: 2, titulo: 'Boas-Vindas & Oração Inicial', duracaoMinutos: 5, responsavel: 'Dirigente', observacoes: 'Câmera 1 e enquadramento do púlpito' },
+        { id: 'b-3', ordem: 3, titulo: 'Louvor Congregacional (4 canções)', duracaoMinutos: 30, responsavel: 'Ministério de Louvor', observacoes: 'Letras sincronizadas no Holyrics + cortes dinâmicos' },
+        { id: 'b-4', ordem: 4, titulo: 'Momento de Avisos & Vídeo Institucional', duracaoMinutos: 7, responsavel: 'Equipe de Mídia', observacoes: 'Passar vídeo da Conferência 2026' },
+        { id: 'b-5', ordem: 5, titulo: 'Dízimos e Ofertas', duracaoMinutos: 8, responsavel: 'Diáconos', observacoes: 'Colocar QR Code do PIX na tela' },
+        { id: 'b-6', ordem: 6, titulo: 'Ministração da Palavra', duracaoMinutos: 45, responsavel: 'Pr. Carlos', observacoes: 'Exibir versículos na tela conforme pregador falar' },
+        { id: 'b-7', ordem: 7, titulo: 'Apelo & Oração pelos Enfermos', duracaoMinutos: 15, responsavel: 'Pastores', observacoes: 'Câmera móvel para planos gerais' },
+        { id: 'b-8', ordem: 8, titulo: 'Encerramento & Bênção Apostólica', duracaoMinutos: 5, responsavel: 'Pr. Carlos', observacoes: 'Música de fundo e tela de encerramento' }
+      ],
+      setlist: [
+        { id: 'm-1', ordem: 1, titulo: 'Bondade de Deus (Goodness of God)', artista: 'Bethel Music / Isaias Saad', tom: 'G (Sol Maior)', linkReferencia: 'https://youtube.com', linkCifra: 'https://cifraclub.com.br', observacoes: 'Começa suave, dinâmica forte no refrão' },
+        { id: 'm-2', ordem: 2, titulo: 'A Bênção (The Blessing)', artista: 'Kari Jobe / Gabriel Guedes', tom: 'B (Si Maior)', linkReferencia: 'https://youtube.com', linkCifra: 'https://cifraclub.com.br', observacoes: 'Atenção aos versos da ponte' },
+        { id: 'm-3', ordem: 3, titulo: 'Graça Sobrenatural', artista: 'Central Music', tom: 'D (Ré Maior)', linkReferencia: 'https://youtube.com', linkCifra: 'https://cifraclub.com.br', observacoes: 'Música de celebração' },
+        { id: 'm-4', ordem: 4, titulo: 'Vem Santo Espírito', artista: 'Laura Souguellis', tom: 'E (Mi Maior)', linkReferencia: 'https://youtube.com', linkCifra: 'https://cifraclub.com.br', observacoes: 'Canção de transição para a palavra' }
+      ]
+    },
+    {
+      id: 'culto-quarta-oracao',
+      titulo: 'Culto de Doutrina & Oração',
+      tipo: 'Quarta-feira',
+      data: formatYMD(nextWed),
+      horarioInicio: '19:30',
+      horarioTermino: '21:00',
+      local: 'Templo Principal',
+      tema: 'Estudo em Romanos 8',
+      pregador: 'Pastor Auxiliar Marcos',
+      descricao: 'Transmissão simplificada de quarta-feira com 1 câmera e telão.',
+      observacoes: 'Chegada às 18:45.',
+      status: 'planejado',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-16T10:00:00.000Z',
+      programacao: [
+        { id: 'b-w1', ordem: 1, titulo: 'Abertura & Oração', duracaoMinutos: 10, responsavel: 'Pr. Marcos' },
+        { id: 'b-w2', ordem: 2, titulo: 'Louvor (2 canções)', duracaoMinutos: 15, responsavel: 'Voz & Violão' },
+        { id: 'b-w3', ordem: 3, titulo: 'Estudo Bíblico', duracaoMinutos: 50, responsavel: 'Pr. Marcos' },
+        { id: 'b-w4', ordem: 4, titulo: 'Oração em Grupo & Término', duracaoMinutos: 15, responsavel: 'Todos' }
+      ],
+      setlist: [
+        { id: 'm-w1', ordem: 1, titulo: 'Tu és Bom', artista: 'Fred Arrais', tom: 'D', observacoes: 'Acústico' },
+        { id: 'm-w2', ordem: 2, titulo: 'Ruja o Leão', artista: 'Talita Catanzaro', tom: 'Em', observacoes: 'Acústico' }
+      ]
+    },
+    {
+      id: 'culto-passado-realizado',
+      titulo: 'Culto de Celebração Passado',
+      tipo: 'Domingo Noite',
+      data: formatYMD(pastSunday),
+      horarioInicio: '19:00',
+      horarioTermino: '21:00',
+      local: 'Templo Principal',
+      tema: 'Caminhando em Fé',
+      pregador: 'Pastor Carlos Oliveira',
+      status: 'realizado',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-01T10:00:00.000Z',
+      programacao: [],
+      setlist: []
+    }
+  ];
+
+  const escalas: EscalaItem[] = [
+    // Next Sunday assignments
+    {
+      id: 'esc-1',
+      cultoId: 'culto-proximo-domingo',
+      usuarioId: 'usr-lucas',
+      funcaoId: 'func-cam-1',
+      funcaoNome: 'Câmera 1 (Púlpito/Principal)',
+      observacao: 'Foco no púlpito e ministração',
+      statusConfirmacao: 'confirmado',
+      dataRespostaConfirmacao: '2026-10-18T14:20:00.000Z'
+    },
+    {
+      id: 'esc-2',
+      cultoId: 'culto-proximo-domingo',
+      usuarioId: 'usr-mariana',
+      funcaoId: 'func-projecao',
+      funcaoNome: 'Projeção de Letras (Holyrics)',
+      observacao: 'Alinhar as letras com antecedência',
+      statusConfirmacao: 'pendente'
+    },
+    {
+      id: 'esc-3',
+      cultoId: 'culto-proximo-domingo',
+      usuarioId: 'usr-gabriel',
+      funcaoId: 'func-obs',
+      funcaoNome: 'Operação OBS / Vmix',
+      observacao: 'Testar bitrate 1080p60 no YouTube',
+      statusConfirmacao: 'confirmado',
+      dataRespostaConfirmacao: '2026-10-18T16:10:00.000Z'
+    },
+    {
+      id: 'esc-4',
+      cultoId: 'culto-proximo-domingo',
+      usuarioId: 'usr-thiago',
+      funcaoId: 'func-cam-2',
+      funcaoNome: 'Câmera 2 (Músicos/Close)',
+      observacao: 'Cortes nos solos de instrumentos',
+      statusConfirmacao: 'troca_solicitada',
+      motivoIndisponibilidade: 'Convocado para plantão extraordinário no trabalho'
+    },
+    {
+      id: 'esc-5',
+      cultoId: 'culto-proximo-domingo',
+      usuarioId: 'usr-beatriz',
+      funcaoId: 'func-fotografia',
+      funcaoNome: 'Fotografia Oficial',
+      observacao: 'Foco nos batismos e comunhão',
+      statusConfirmacao: 'confirmado',
+      dataRespostaConfirmacao: '2026-10-19T09:00:00.000Z'
+    },
+    // Past Sunday attendance record
+    {
+      id: 'esc-p1',
+      cultoId: 'culto-passado-realizado',
+      usuarioId: 'usr-lucas',
+      funcaoId: 'func-cam-1',
+      funcaoNome: 'Câmera 1 (Púlpito/Principal)',
+      statusConfirmacao: 'confirmado',
+      statusPresenca: 'presente',
+      registradoPor: 'usr-admin-1',
+      dataRegistroPresenca: '2026-10-19T21:30:00.000Z'
+    },
+    {
+      id: 'esc-p2',
+      cultoId: 'culto-passado-realizado',
+      usuarioId: 'usr-mariana',
+      funcaoId: 'func-projecao',
+      funcaoNome: 'Projeção de Letras (Holyrics)',
+      statusConfirmacao: 'confirmado',
+      statusPresenca: 'presente',
+      registradoPor: 'usr-admin-1',
+      dataRegistroPresenca: '2026-10-19T21:30:00.000Z'
+    },
+    {
+      id: 'esc-p3',
+      cultoId: 'culto-passado-realizado',
+      usuarioId: 'usr-thiago',
+      funcaoId: 'func-cam-2',
+      funcaoNome: 'Câmera 2 (Músicos/Close)',
+      statusConfirmacao: 'indisponivel',
+      statusPresenca: 'ausente_justificado',
+      observacaoPresenca: 'Avisou com 3 dias de antecedência devido a prova da faculdade',
+      registradoPor: 'usr-admin-1',
+      dataRegistroPresenca: '2026-10-19T21:30:00.000Z'
+    }
+  ];
+
+  const trocas: SolicitacaoTroca[] = [
+    {
+      id: 'trc-1',
+      escalaItemId: 'esc-4',
+      cultoId: 'culto-proximo-domingo',
+      solicitanteId: 'usr-thiago',
+      solicitanteNome: 'Thiago Alves',
+      funcaoNome: 'Câmera 2 (Músicos/Close)',
+      cultoData: formatYMD(nextSunday),
+      cultoTitulo: 'Culto de Celebração & Família',
+      motivo: 'Plantão extraordinário convocado pela empresa na noite de domingo.',
+      substitutoSugeridoId: 'usr-lucas',
+      substitutoSugeridoNome: 'Lucas Silva',
+      dataSolicitacao: '2026-10-19T10:30:00.000Z',
+      status: 'pendente'
+    }
+  ];
+
+  const orcamento: OrcamentoConfig = {
+    orcamentoTotal: 25000.0,
+    periodo: 'Exercício 2026 / 2º Semestre',
+    observacoes: 'Verba aprovada pela diretoria da igreja para modernização do audiovisual e transmissão.',
+    ultimaAtualizacao: '2026-10-01T00:00:00.000Z'
+  };
+
+  const compras: PedidoCompra[] = [
+    {
+      id: 'cmp-1',
+      nomeProduto: 'Cabo Fibra Óptica HDMI 2.1 30 metros',
+      descricao: 'Para ligar o switcher do púlpito à baia de controle sem perda de sinal 4K60',
+      categoria: 'Cabeamento & Conexões',
+      quantidade: 2,
+      valorEstimado: 750.0,
+      valorAprovado: 720.0,
+      valorGasto: 710.0,
+      fornecedor: 'Kabum / Distribuidora AV',
+      linkReferencia: 'https://exemplo.com/cabo-hdmi-optico',
+      prioridade: 'essencial',
+      solicitanteId: 'usr-gabriel',
+      solicitanteNome: 'Gabriel Santos',
+      dataPedido: '2026-09-20T10:00:00.000Z',
+      dataCompra: '2026-09-28T15:00:00.000Z',
+      status: 'comprada',
+      observacoes: 'Instalado com sucesso no duto principal.'
+    },
+    {
+      id: 'cmp-2',
+      nomeProduto: 'Kit 4 Baterias Sony NP-F970 + Carregador Quádruplo',
+      descricao: 'Baterias para os monitores de campo e iluminadores LED dos cinegrafistas',
+      categoria: 'Energia & Acessórios',
+      quantidade: 1,
+      valorEstimado: 680.0,
+      valorAprovado: 650.0,
+      prioridade: 'importante',
+      solicitanteId: 'usr-lucas',
+      solicitanteNome: 'Lucas Silva',
+      dataPedido: '2026-10-10T14:30:00.000Z',
+      status: 'aprovada',
+      justificativaDecisao: 'Aprovado pelo pastor e coordenador. Aguardando liberação do faturamento.',
+      observacoes: 'Preço cotado na loja oficial.'
+    },
+    {
+      id: 'cmp-3',
+      nomeProduto: 'Monitor de Referência IPS 7 polegadas HDMI/SDI',
+      descricao: 'Para o operador da câmera 1 ter retorno do programa ao vivo e tally',
+      categoria: 'Monitores & Telas',
+      quantidade: 1,
+      valorEstimado: 1450.0,
+      prioridade: 'desejavel',
+      solicitanteId: 'usr-thiago',
+      solicitanteNome: 'Thiago Alves',
+      dataPedido: '2026-10-17T11:00:00.000Z',
+      status: 'pendente',
+      observacoes: 'Em análise pelo coordenador financeiro.'
+    }
+  ];
+
+  const equipamentos: Equipamento[] = [
+    {
+      id: 'eq-1',
+      nome: 'Sony Alpha 7 IV (Full Frame 4K)',
+      categoria: 'Câmeras',
+      marcaModelo: 'Sony ILCE-7M4',
+      patrimonioNumero: 'MID-CAM-001',
+      dataAquisicao: '2024-05-10',
+      valorAquisicao: 16800.0,
+      estadoConservacao: 'bom',
+      localArmazenamento: 'Case rígido 01 - Sala de Mídia',
+      responsavelNome: 'Lucas Silva',
+      status: 'em_uso',
+      observacoes: 'Utilizada como câmera 1 com saída limpa HDMI.',
+      manutencoes: [
+        {
+          id: 'man-1',
+          data: '2026-06-15',
+          descricaoProblema: 'Limpeza de sensor e atualização de firmware v3.01',
+          servicoRealizado: 'Limpeza em laboratório autorizado Sony',
+          custo: 250.0,
+          tecnicoResponsavel: 'Assistência Técnica Alpha',
+          status: 'concluido',
+          dataConclusao: '2026-06-18'
+        }
+      ]
+    },
+    {
+      id: 'eq-2',
+      nome: 'Mesa de Corte ATEM Mini Extreme ISO',
+      categoria: 'Switchers & Vídeo',
+      marcaModelo: 'Blackmagic Design ATEM Mini Extreme ISO',
+      patrimonioNumero: 'MID-SWI-001',
+      dataAquisicao: '2023-11-20',
+      valorAquisicao: 8900.0,
+      estadoConservacao: 'bom',
+      localArmazenamento: 'Bancada de Controle Central',
+      responsavelNome: 'Gabriel Santos',
+      status: 'em_uso',
+      observacoes: '8 entradas HDMI ativas, gravação individual dos canais em SSD.',
+      manutencoes: []
+    },
+    {
+      id: 'eq-3',
+      nome: 'Estabilizador Gimbal Ronin RS 3 Pro',
+      categoria: 'Estabilização',
+      marcaModelo: 'DJI Ronin RS3 Pro Combo',
+      patrimonioNumero: 'MID-EST-001',
+      dataAquisicao: '2024-02-14',
+      valorAquisicao: 7200.0,
+      estadoConservacao: 'bom',
+      localArmazenamento: 'Maleta DJI - Armário A2',
+      responsavelNome: 'Lucas Silva',
+      status: 'disponivel',
+      observacoes: 'Acompanha motor de foco LiDAR e transmissor RavenEye.',
+      manutencoes: []
+    },
+    {
+      id: 'eq-4',
+      nome: 'Cabo SDI 50m com Carretel',
+      categoria: 'Cabeamento',
+      marcaModelo: 'Canare L-4.5CHD Belden Neutrik',
+      patrimonioNumero: 'MID-CAB-012',
+      dataAquisicao: '2023-08-10',
+      valorAquisicao: 580.0,
+      estadoConservacao: 'regular',
+      localArmazenamento: 'Prateleira de Cabos',
+      responsavelNome: 'Thiago Alves',
+      status: 'em_manutencao',
+      observacoes: 'Conector BNC fêmea com mau contato intermitente na ponta B.',
+      manutencoes: [
+        {
+          id: 'man-2',
+          data: '2026-10-14',
+          descricaoProblema: 'Sinal oscilando ao movimentar a ponta do conector Neutrik',
+          servicoRealizado: 'Re-crimpagem do terminal BNC',
+          custo: 35.0,
+          tecnicoResponsavel: 'Equipe Interna (Thiago)',
+          status: 'em_aberto'
+        }
+      ]
+    }
+  ];
+
+  const tarefas: Tarefa[] = [
+    {
+      id: 'tar-1',
+      titulo: 'Testar e configurar presets de cor das 3 câmeras',
+      descricao: 'Padronizar perfil S-Cinetone e balanço de branco para iluminação do palco (4300K).',
+      responsavelId: 'usr-lucas',
+      responsavelNome: 'Lucas Silva',
+      prazo: formatYMD(nextSunday),
+      prioridade: 'alta',
+      categoria: 'Operação de Vídeo',
+      status: 'em_andamento',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-18T10:00:00.000Z',
+      comentarios: [
+        {
+          id: 'com-1',
+          usuarioId: 'usr-lucas',
+          usuarioNome: 'Lucas Silva',
+          texto: 'Câmera 1 e 2 já calibradas. Falta apenas o ajuste fino da câmera móvel.',
+          data: '2026-10-19T15:30:00.000Z'
+        }
+      ]
+    },
+    {
+      id: 'tar-2',
+      titulo: 'Atualizar banco de hinos do Holyrics com as novas canções',
+      descricao: 'Importar as cifras e letras das 4 músicas do próximo culto com divisão de estrofes de 2 linhas.',
+      responsavelId: 'usr-mariana',
+      responsavelNome: 'Mariana Costa',
+      prazo: formatYMD(nextSunday),
+      prioridade: 'alta',
+      categoria: 'Projeção',
+      status: 'a_fazer',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-18T11:00:00.000Z',
+      comentarios: []
+    },
+    {
+      id: 'tar-3',
+      titulo: 'Limpeza e organização dos cabos da cabine de mídia',
+      descricao: 'Passar fita de velcro nos cabos soltos atrás da bancada principal.',
+      responsavelId: 'usr-thiago',
+      responsavelNome: 'Thiago Alves',
+      prazo: '2026-10-25',
+      prioridade: 'media',
+      categoria: 'Organização do Espaço',
+      status: 'aguardando',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-17T09:00:00.000Z',
+      comentarios: []
+    },
+    {
+      id: 'tar-4',
+      titulo: 'Backup dos arquivos dos cultos de setembro no NAS',
+      descricao: 'Transferir gravações ISO brutas e projetos do DaVinci Resolve para o storage secundário.',
+      responsavelId: 'usr-gabriel',
+      responsavelNome: 'Gabriel Santos',
+      prazo: '2026-10-15',
+      prioridade: 'media',
+      categoria: 'Arquivo & Armazenamento',
+      status: 'concluida',
+      criadoPor: 'usr-admin-1',
+      criadoEm: '2026-10-10T14:00:00.000Z',
+      comentarios: [
+        {
+          id: 'com-2',
+          usuarioId: 'usr-gabriel',
+          usuarioNome: 'Gabriel Santos',
+          texto: 'Concluído! 450GB arquivados e validados no NAS Raid 5.',
+          data: '2026-10-14T19:00:00.000Z'
+        }
+      ]
+    }
+  ];
+
+  const sugestoes: Sugestao[] = [
+    {
+      id: 'sug-1',
+      titulo: 'Intercomunicadores sem fio para os cinegrafistas',
+      descricao: 'Hoje usamos fones com fio que limitam a movimentação do cinegrafista móvel pelo templo. Um sistema sem fio tipo Hollyland Solidcom melhoraria muito a direção do culto.',
+      categoria: 'melhoria_equipamento',
+      prioridade: 'alta',
+      autorId: 'usr-lucas',
+      autorNome: 'Lucas Silva',
+      dataEnvio: '2026-10-12T16:00:00.000Z',
+      status: 'aprovada',
+      respostaAdmin: 'Excelente sugestão Lucas! Vamos incluir no planejamento de compras do próximo trimestre.',
+      atualizadoPor: 'usr-admin-1',
+      dataAtualizacao: '2026-10-14T11:00:00.000Z',
+      historico: [
+        { data: '2026-10-12T16:00:00.000Z', usuario: 'Lucas Silva', texto: 'Sugestão cadastrada.' },
+        { data: '2026-10-14T11:00:00.000Z', usuario: 'Geovanner', texto: 'Status alterado para Aprovada.' }
+      ]
+    },
+    {
+      id: 'sug-2',
+      titulo: 'Treinamento de enquadramento para novos voluntários',
+      descricao: 'Fazer uma oficina rápida de 1 hora num sábado ensinando regra dos terços e compensação de iluminação.',
+      categoria: 'treinamento',
+      prioridade: 'media',
+      autorId: 'usr-beatriz',
+      autorNome: 'Beatriz Rocha',
+      dataEnvio: '2026-10-16T18:20:00.000Z',
+      status: 'em_analise',
+      historico: [
+        { data: '2026-10-16T18:20:00.000Z', usuario: 'Beatriz Rocha', texto: 'Sugestão cadastrada.' }
+      ]
+    }
+  ];
+
+  const comunicados: Comunicado[] = [
+    {
+      id: 'com-aviso-1',
+      titulo: '📢 Reunião Geral de Alinhamento da Mídia',
+      conteudo: 'Atenção equipe! Teremos nossa reunião mensal no sábado às 16h na sala 3. Vamos apresentar novos equipamentos e alinhar a cobertura do Batismo e das festividades de fim de ano.',
+      urgente: true,
+      publicadoPor: 'Geovanner (Coordenador)',
+      publicadoEm: '2026-10-18T10:00:00.000Z',
+      fixado: true
+    },
+    {
+      id: 'com-aviso-2',
+      titulo: '💡 Novo padrão de exportação dos vídeos para o Instagram',
+      conteudo: 'Os reels agora devem ser exportados em 1080x1920 (9:16), bitrate de 15Mbps e áudio AAC em 320kbps. O preset já está salvo no DaVinci Resolve da bancada.',
+      urgente: false,
+      publicadoPor: 'Geovanner (Coordenador)',
+      publicadoEm: '2026-10-15T14:00:00.000Z',
+      fixado: false
+    }
+  ];
+
+  const notificacoes: Notificacao[] = [
+    {
+      id: 'notif-1',
+      usuarioId: 'usr-lucas',
+      titulo: 'Você foi escalado!',
+      mensagem: 'Você está escalado como Câmera 1 no Culto de Celebração & Família (Domingo às 19:00). Por favor, confirme sua presença.',
+      tipo: 'escala',
+      link: '/escalas',
+      lida: true,
+      criadaEm: '2026-10-18T10:00:00.000Z'
+    },
+    {
+      id: 'notif-2',
+      usuarioId: 'usr-mariana',
+      titulo: 'Confirmação de Escala Pendente',
+      mensagem: 'Você foi escalada para Projeção de Letras neste Domingo às 19:00. Confirme se poderá comparecer.',
+      tipo: 'escala',
+      link: '/escalas',
+      lida: false,
+      criadaEm: '2026-10-18T10:00:00.000Z'
+    },
+    {
+      id: 'notif-3',
+      usuarioId: 'usr-admin-1',
+      titulo: 'Nova Solicitação de Troca de Escala',
+      mensagem: 'Thiago Alves solicitou troca para a função Câmera 2 no culto de domingo (Motivo: plantão no trabalho).',
+      tipo: 'troca',
+      link: '/trocas',
+      lida: false,
+      criadaEm: '2026-10-19T10:30:00.000Z'
+    }
+  ];
+
+  const auditLogs: AuditLog[] = [
+    {
+      id: 'log-1',
+      usuarioId: 'usr-admin-1',
+      usuarioNome: 'Geovanner',
+      acao: 'Inicialização do Sistema',
+      detalhes: 'Sistema Mídia Central inicializado com parâmetros padrão e contas de teste.',
+      timestamp: '2026-10-10T00:00:00.000Z'
+    }
+  ];
+
+  return {
+    config,
+    users,
+    tokens: [],
+    departamentos,
+    funcoes,
+    cultos,
+    escalas,
+    trocas,
+    sugestoes,
+    compras,
+    orcamento,
+    equipamentos,
+    tarefas,
+    comunicados,
+    notificacoes,
+    auditLogs
+  };
+}
+
+class DatabaseManager {
+  private data: DatabaseSchema;
+  private isSaving = false;
+  private queuedSave = false;
+
+  constructor() {
+    this.ensureDirectory();
+    this.data = this.loadData();
+  }
+
+  private ensureDirectory() {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  }
+
+  private loadData(): DatabaseSchema {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        // Ensure all collections exist
+        const seed = getInitialSeed();
+        return {
+          ...seed,
+          ...parsed,
+          config: { ...seed.config, ...(parsed.config || {}) }
+        };
+      }
+    } catch (err) {
+      console.error('Error reading database file, creating fresh seed:', err);
+    }
+    const seed = getInitialSeed();
+    this.writeSync(seed);
+    return seed;
+  }
+
+  private writeSync(data: DatabaseSchema) {
+    const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+    fs.renameSync(tempFile, DB_FILE);
+  }
+
+  public save(): Promise<void> {
+    if (this.isSaving) {
+      this.queuedSave = true;
+      return Promise.resolve();
+    }
+    this.isSaving = true;
+
+    return new Promise((resolve, reject) => {
+      const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+      const payload = JSON.stringify(this.data, null, 2);
+      fs.writeFile(tempFile, payload, 'utf-8', (err) => {
+        if (err) {
+          this.isSaving = false;
+          return reject(err);
+        }
+        fs.rename(tempFile, DB_FILE, (renameErr) => {
+          this.isSaving = false;
+          if (this.queuedSave) {
+            this.queuedSave = false;
+            this.save();
+          }
+          if (renameErr) return reject(renameErr);
+          resolve();
+        });
+      });
+    });
+  }
+
+  public getData(): DatabaseSchema {
+    return this.data;
+  }
+
+  public addAuditLog(usuarioId: string, usuarioNome: string, acao: string, detalhes: string) {
+    this.data.auditLogs.unshift({
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      usuarioId,
+      usuarioNome,
+      acao,
+      detalhes,
+      timestamp: new Date().toISOString()
+    });
+    // keep maximum 500 audit logs
+    if (this.data.auditLogs.length > 500) {
+      this.data.auditLogs = this.data.auditLogs.slice(0, 500);
+    }
+    this.save();
+  }
+
+  public addNotification(
+    usuarioId: string,
+    titulo: string,
+    mensagem: string,
+    tipo: Notificacao['tipo'],
+    link?: string
+  ) {
+    const notif: Notificacao = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      usuarioId,
+      titulo,
+      mensagem,
+      tipo,
+      link,
+      lida: false,
+      criadaEm: new Date().toISOString()
+    };
+    this.data.notificacoes.unshift(notif);
+    this.save();
+    return notif;
+  }
+}
+
+export const db = new DatabaseManager();
