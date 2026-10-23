@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { api } from '../services/api';
+import { firebaseAuthService } from '../services/firebaseAuth';
 import { User, Lock, Phone, Calendar, X, Check, KeyRound } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -53,6 +54,17 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
         disponibilidade,
         ...(activeTab === 'senha' ? { senhaAtual, novaSenha } : {})
       });
+
+      try {
+        await firebaseAuthService.updateProfileAndCredentials({
+          nome,
+          telefone,
+          disponibilidade,
+          ...(activeTab === 'senha' ? { novaSenha } : {})
+        });
+      } catch (fbErr) {
+        console.warn('Firebase profile sync notice:', fbErr);
+      }
 
       await refreshUser();
       showToast({
