@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Perfil de voluntário ou administrador da equipe de mídia",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "telefone": { "type": "string" },
+        "perfil": { "type": "string", "enum": ["admin", "voluntario", "ministro_louvor"] },
+        "status": { "type": "string", "enum": ["ativo", "pendente_aprovacao", "inativo"] },
+        "funcoes": { "type": "array" },
+        "departamentos": { "type": "array" },
+        "disponibilidade": { "type": "string" },
+        "dataCadastro": { "type": "string" }
+      },
+      "required": ["id", "nome", "email", "perfil", "status"]
+    },
+    "Culto": {
+      "title": "Culto",
+      "description": "Culto da igreja com programação e setlist",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "titulo": { "type": "string" },
+        "tipo": { "type": "string" },
+        "data": { "type": "string" },
+        "horarioInicio": { "type": "string" },
+        "status": { "type": "string", "enum": ["planejado", "confirmado", "realizado", "cancelado"] }
+      },
+      "required": ["id", "titulo", "data", "status"]
+    },
+    "Escala": {
+      "title": "Escala",
+      "description": "Escalação de um voluntário para uma função no culto",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cultoId": { "type": "string" },
+        "usuarioId": { "type": "string" },
+        "funcaoNome": { "type": "string" },
+        "statusConfirmacao": { "type": "string", "enum": ["pendente", "confirmado", "indisponivel", "troca_solicitada"] }
+      },
+      "required": ["id", "cultoId", "usuarioId", "statusConfirmacao"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Dados do perfil de voluntários e administradores"
+    },
+    "/cultos/{cultoId}": {
+      "schema": "Culto",
+      "description": "Cultos e eventos agendados"
+    },
+    "/escalas/{escalaId}": {
+      "schema": "Escala",
+      "description": "Escalas de serviço da equipe de mídia"
+    }
+  }
+}
