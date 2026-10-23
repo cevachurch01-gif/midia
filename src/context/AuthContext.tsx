@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
 import { api, getStoredToken, setStoredToken, removeStoredToken } from '../services/api';
+import { firebaseAuthService } from '../services/firebaseAuth';
 
 interface AuthContextType {
   user: User | null;
@@ -74,9 +75,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, pass: string) => {
     setIsLoading(true);
     try {
+      // 1. Authenticate with Firebase Auth and sync profile
+      let fbUser: User | null = null;
+      try {
+        const fbRes = await firebaseAuthService.login(email, pass);
+        fbUser = fbRes.user;
+      } catch (fbErr: any) {
+        console.warn('Firebase login check:', fbErr?.code || fbErr?.message);
+      }
+
+      // 2. Authenticate with backend API for token
       const res = await api.login(email, pass);
       setStoredToken(res.token);
-      setUser(res.user);
+      setUser(fbUser || res.user);
       await loadAllUsers();
     } finally {
       setIsLoading(false);
@@ -86,6 +97,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (data: { nome: string; email: string; password: string; telefone?: string; funcoes?: string[]; disponibilidade?: string }) => {
     setIsLoading(true);
     try {
+      // 1. Create in Firebase Auth & Firestore
+      try {
+        await firebaseAuthService.register(data);
+      } catch (fbErr: any) {
+        console.warn('Firebase register notice:', fbErr?.code || fbErr?.message);
+      }
+
+      // 2. Create in backend API
       const res = await api.register(data);
       if (res.token && res.user) {
         setStoredToken(res.token);
@@ -101,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     removeStoredToken();
     setUser(null);
+    firebaseAuthService.logout().catch(() => {});
   };
 
   const switchUser = async (userId: string) => {
